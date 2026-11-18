@@ -1,0 +1,11 @@
+# Dummy UPS state file for the hardware-free smoke tests (dummy-ups driver).
+# Real EcoFlow reporting is not required to prove the upsd data path.
+ups.status: OL
+battery.charge: 100
+battery.charge.low: 30
+battery.runtime: 3600
+battery.voltage: 13.6
+ups.load: 12
+device.mfr: EcoFlow
+device.model: Delta 3 Plus (simulated)
+device.type: ups
