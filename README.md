@@ -60,6 +60,7 @@ services:
       MON_USER: monuser
       MON_PASSWORD: change_me_long_random
       OVERRIDE_BATTERY_CHARGE_LOW: "30"
+      OVERRIDE_BATTERY_RUNTIME_LOW: "900"
     ports:
       - "127.0.0.1:3493:3493"
     volumes:
