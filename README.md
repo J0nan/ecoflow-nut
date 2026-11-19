@@ -37,6 +37,12 @@ services:
     image: j0n4n/ecoflow-nut:latest
     restart: unless-stopped
     stop_grace_period: 30s
+    # Root filesystem is read-only; /run holds the driver socket and pid files,
+    # and /etc/nut holds the configuration rendered at every start.
+    read_only: true
+    tmpfs:
+      - /run
+      - /etc/nut
     security_opt:
       - no-new-privileges:true
     cap_drop:
@@ -45,6 +51,7 @@ services:
       - CHOWN        # chown root:nut on the rendered configs
       - DAC_OVERRIDE # read the 0640 configs and the USB device node
       - FOWNER       # chmod files this process does not own
+      - KILL         # stop upsd, which drops to the unprivileged nut user
       - SETGID
       - SETUID
     environment:
@@ -65,9 +72,10 @@ Notes for the app YAML:
 
 - The published port is bound to `127.0.0.1`, which is all TrueNAS needs because it runs on the same machine. Change it to `"3493:3493"` only if another machine must query the UPS directly, and keep that port off any untrusted network.
 - `MON_PASSWORD` is the monitor password; it is visible in the app configuration and must match what you enter in the UPS service below. Use a long random value, for example `openssl rand -base64 24`.
+- `read_only: true` plus the `tmpfs` entries is safe because every file the container writes is derived at startup: the configuration is rendered from the environment into `/etc/nut`, and the driver socket, pid files and healthcheck target live in `/run`. Nothing needs to survive a container recreation.
+- If you mount your own `/etc/nut` instead of using environment variables, drop the `/etc/nut` tmpfs entry; the mount provides that path.
 - If your TrueNAS version rejects `device_cgroup_rules`, remove that key and keep the `/dev/bus/usb` bind mount.
-- If hotplug or re-enumeration keeps breaking access, replace the capability block with `privileged: true`. That is the escape hatch, not the default.
-- Optional extra hardening: `read_only: true` together with `tmpfs: [/run]`; the driver only needs to write inside `/run` and `/etc/nut`.
+- If hotplug or re-enumeration keeps breaking access, replace the hardening block with `privileged: true`. That is the escape hatch, not the default.
 
 Check the app logs in the TrueNAS UI for `UPS 'ecoflow' is available at ecoflow@127.0.0.1:3493`, then from a TrueNAS shell:
 
@@ -154,12 +162,21 @@ This is the same setup the CI smoke tests use, and it is enough to configure and
 
 ```bash
 docker run -d --name ecoflow-nut --restart unless-stopped \
+  --read-only \
+  --tmpfs /run \
+  --tmpfs /etc/nut \
+  --cap-drop ALL \
+  --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER \
+  --cap-add SETGID --cap-add SETUID --cap-add KILL \
+  --security-opt no-new-privileges:true \
   -e MON_PASSWORD="$(openssl rand -base64 24)" \
   -p 3493:3493 \
   -v /dev/bus/usb:/dev/bus/usb \
   --device-cgroup-rule 'c 189:* rmw' \
   ecoflow-nut:dev
 ```
+
+Those are the same flags the app YAML uses, so a local run rehearses the hardened deployment.
 
 Stop it again before installing the TrueNAS app, so port 3493 is free.
 
@@ -197,8 +214,8 @@ If `/etc/nut/ups.conf` already exists when the container starts, mounted as a si
 - The NUT protocol is unencrypted and reads are unauthenticated, and there is no TLS by design. That is fine on a trusted LAN and unacceptable anywhere else, so **never port-forward 3493** and keep the published port bound to loopback unless another machine really needs it.
 - Use a long random `MON_PASSWORD`. The `upsmon master` privilege in `upsd.users` can put the monitored system into forced shutdown, and the password travels in clear text.
 - The image contains no configuration and no secrets. The password is written with a `0077` umask, stored `0640 root:nut`, and removed from the environment of the services so it cannot be read from `/proc/<pid>/environ`.
-- The driver runs as root inside the container because it must open the USB device node. `upsmon` and `upssched` are not installed in the image, so no shutdown can be triggered from inside it.
-- The app YAML drops all capabilities and adds back only the five the entrypoint needs, and sets `no-new-privileges`. `read_only: true` with `tmpfs: [/run]` works as well and is worth enabling once the UPS is reporting correctly.
+- The driver runs as root inside the container because it must open the USB device node, while `upsd` drops to the unprivileged `nut` user (uid 84) as soon as it starts. `upsmon` and `upssched` are not installed in the image, so no shutdown can be triggered from inside it.
+- The app runs with a read-only root filesystem, `tmpfs` for `/run` and `/etc/nut`, `no-new-privileges`, and every capability dropped except six: `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETGID`, `SETUID` and `KILL`. `KILL` is there because the entrypoint stops `upsd`, which no longer runs as uid 0.
 - Supply chain: NUT is downloaded from the upstream release and verified against the published SHA-256, GitHub Actions are pinned to commit SHAs, Dependabot tracks actions and base images, the weekly rebuild picks up Debian security updates, and published images carry a build provenance attestation (`docker buildx imagetools inspect j0n4n/ecoflow-nut`).
 - Report a vulnerability through the repository's private security advisory page instead of a public issue.
 
