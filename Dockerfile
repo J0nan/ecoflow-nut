@@ -123,7 +123,7 @@ ARG NUT_VERSION
 LABEL org.opencontainers.image.title="ecoflow-nut" \
       org.opencontainers.image.description="Network UPS Tools server for EcoFlow USB HID UPS units (Delta 3 Plus, River 3 Plus)" \
       org.opencontainers.image.source="https://github.com/J0nan/ecoflow-nut" \
-      org.opencontainers.image.licenses="MIT" \
+      org.opencontainers.image.licenses="AGPL-3.0" \
       org.opencontainers.image.version="nut-${NUT_VERSION}"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]

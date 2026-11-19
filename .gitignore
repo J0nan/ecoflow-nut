@@ -6,6 +6,9 @@
 .env.*
 !.env.example
 
+# Agent/task scratch notes
+odd/
+
 # Editors and operating systems
 .DS_Store
 Thumbs.db
