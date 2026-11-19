@@ -389,6 +389,13 @@ resolve_driver_bin() {
 # ---------------------------------------------------------------------------
 # Processes
 # ---------------------------------------------------------------------------
+# Liveness check that does not depend on signal permissions: `upsd` drops to
+# the unprivileged `nut` user, so `kill -0` from the root entrypoint only works
+# while CAP_KILL is present.
+process_alive() {
+  [ -n "${1:-}" ] && [ -d "/proc/$1" ]
+}
+
 start_driver() {
   log "starting driver ${DRIVER_BIN} for UPS '${EFFECTIVE_UPS}' as user '${DRIVER_USER}'"
   # -F keeps the driver in the foreground so this process can supervise it.
@@ -407,11 +414,11 @@ wait_for_ready() {
   local deadline=$((SECONDS + READY_TIMEOUT)) status
 
   while [ "$SECONDS" -lt "$deadline" ]; do
-    if ! kill -0 "$DRIVER_PID" 2>/dev/null; then
+    if ! process_alive "$DRIVER_PID"; then
       warn "the UPS driver exited during startup"
       return 1
     fi
-    if ! kill -0 "$UPSD_PID" 2>/dev/null; then
+    if ! process_alive "$UPSD_PID"; then
       warn "upsd exited during startup"
       return 1
     fi
@@ -432,7 +439,7 @@ shutdown() {
 
   log "stopping services"
   for pid in "${UPSD_PID}" "${DRIVER_PID}"; do
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    if process_alive "$pid"; then
       kill -TERM "$pid" 2>/dev/null || true
     fi
   done
@@ -440,7 +447,7 @@ shutdown() {
   for ((i = 0; i < 20; i++)); do
     alive=0
     for pid in "${UPSD_PID}" "${DRIVER_PID}"; do
-      if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+      if process_alive "$pid"; then
         alive=1
       fi
     done
@@ -451,7 +458,7 @@ shutdown() {
   done
 
   for pid in "${UPSD_PID}" "${DRIVER_PID}"; do
-    if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
+    if process_alive "$pid"; then
       warn "process ${pid} ignored SIGTERM; sending SIGKILL"
       kill -KILL "$pid" 2>/dev/null || true
     fi

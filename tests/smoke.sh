@@ -289,6 +289,43 @@ test_mount_mode() {
   printf '   mounted config honoured, no password required, exit 0\n'
 }
 
+test_hardened_deployment() {
+  local name="${PREFIX}-hardened"
+  printf '== hardened deployment: read-only rootfs, tmpfs, dropped capabilities\n'
+
+  # Mirrors the deployment documented in the README: read-only root filesystem,
+  # tmpfs for /run and /etc/nut, every capability dropped but the six the
+  # container needs (KILL included, because upsd runs as the nut user).
+  start_container "$name" \
+    --read-only \
+    --tmpfs /run \
+    --tmpfs /etc/nut \
+    --cap-drop ALL \
+    --cap-add CHOWN \
+    --cap-add DAC_OVERRIDE \
+    --cap-add FOWNER \
+    --cap-add SETGID \
+    --cap-add SETUID \
+    --cap-add KILL \
+    --security-opt no-new-privileges:true \
+    -e MON_PASSWORD="$PASSWORD" \
+    -e DRIVER=dummy-ups \
+    -e PORT=/fixtures/dummy.dev \
+    -v "$(host_path "${FIXTURES}/dummy.dev"):/fixtures/dummy.dev:ro"
+
+  wait_for_health "$CURRENT_CONTAINER"
+  assert_eq '100' "$(rsh upsc ecoflow@127.0.0.1:3493 battery.charge)" \
+    'the hardened container must serve data'
+  assert_eq '640 root nut' "$(rsh stat -c '%a %U %G' /etc/nut/ups.conf)" \
+    'configs rendered into the tmpfs must still be 640 root:nut'
+
+  docker stop -t 20 "$CURRENT_CONTAINER" >/dev/null
+  assert_eq '0' "$(docker inspect -f '{{.State.ExitCode}}' "$CURRENT_CONTAINER")" \
+    'SIGTERM must stop the hardened container with exit status 0'
+  CURRENT_CONTAINER=''
+  printf '   read-only rootfs, dropped capabilities, exit 0\n'
+}
+
 test_fail_fast() {
   local name="${PREFIX}-failfast" rc
   printf '== fail-fast: dead driver stops the container\n'
@@ -321,6 +358,7 @@ main() {
   test_env_mode_rendering
   test_env_mode_live
   test_mount_mode
+  test_hardened_deployment
   test_fail_fast
   printf '\nAll smoke tests passed.\n'
 }
