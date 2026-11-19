@@ -247,7 +247,7 @@ Configure the repository once under **Settings > Secrets and variables > Actions
 | Name | Kind | Value |
 | --- | --- | --- |
 | `DOCKERHUB_USERNAME` | secret | `j0n4n` |
-| `DOCKERHUB_TOKEN` | secret | Docker Hub **access token** with Read/Write, not the account password |
+| `DOCKERHUB_TOKEN` | secret | Docker Hub **access token** with **Read, Write and Delete**, not the account password |
 | `DOCKERHUB_IMAGE` | variable | `j0n4n/ecoflow-nut` |
 
 To release, tag `vX.Y.Z` and push the tag; the workflow publishes the semver tags and `latest`. `.github/workflows/dockerhub-desc.yml` keeps the Docker Hub description in sync with this README.
