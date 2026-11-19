@@ -1,0 +1,17 @@
+# Container runtime artifacts
+*.log
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Agent/task scratch notes
+odd/
+.atl/
+
+# Editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

@@ -1,0 +1,36 @@
+name: dockerhub-description
+
+# Keeps the Docker Hub repository page in sync with README.md.
+on:
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - .github/workflows/dockerhub-desc.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dockerhub-description
+  cancel-in-progress: true
+
+jobs:
+  sync:
+    name: Sync README
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Update Docker Hub description
+        uses: peter-evans/dockerhub-description@432a30c9e07499fd01da9f8a49f0faf9e0ca5b77 # v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ vars.DOCKERHUB_IMAGE }}
+          short-description: 'NUT server for EcoFlow Delta 3 Plus / River 3 Plus USB HID UPS units'
+          readme-filepath: ./README.md

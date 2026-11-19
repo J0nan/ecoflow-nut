@@ -1,0 +1,3 @@
+[monuser]
+    password = mount_test_password
+    upsmon master
